@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tenant/Store Model - Each Shopify store is a tenant
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  shopifyDomain String @unique // e.g., "mystore.myshopify.com"
+  shopifyAccessToken String? // OAuth token from Shopify
+  shopifyApiKey String? // App API key
+  shopifyApiSecret String? // App API secret
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  customers   Customer[]
+  orders      Order[]
+  products    Product[]
+  events      CustomEvent[]
+
+  @@index([shopifyDomain])
+}
+
+// Customer Model
+model Customer {
+  id          String   @id @default(uuid())
+  tenantId    String
+  shopifyId   String   // Shopify customer ID
+  email       String?
+  firstName   String?
+  lastName    String?
+  phone       String?
+  totalSpent  Decimal  @default(0)
+  ordersCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime @default(now()) // Last sync time from Shopify
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@unique([tenantId, shopifyId])
+  @@index([tenantId])
+  @@index([email])
+}
+
+// Order Model
+model Order {
+  id              String   @id @default(uuid())
+  tenantId        String
+  shopifyId       String   // Shopify order ID
+  orderNumber     String?
+  customerId      String?
+  totalPrice      Decimal
+  subtotalPrice   Decimal?
+  totalTax        Decimal?
+  currency        String   @default("USD")
+  financialStatus String?  // paid, pending, refunded, etc.
+  fulfillmentStatus String? // fulfilled, unfulfilled, etc.
+  orderDate       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  syncedAt        DateTime @default(now())
+
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, shopifyId])
+  @@index([tenantId])
+  @@index([orderDate])
+  @@index([customerId])
+}
+
+// Product Model
+model Product {
+  id          String   @id @default(uuid())
+  tenantId    String
+  shopifyId   String   // Shopify product ID
+  title       String
+  handle      String?  // URL handle
+  vendor      String?
+  productType String?
+  status      String?  // active, archived, draft
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  syncedAt    DateTime @default(now())
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, shopifyId])
+  @@index([tenantId])
+}
+
+// Custom Events Model (cart abandoned, checkout started, etc.)
+model CustomEvent {
+  id          String   @id @default(uuid())
+  tenantId    String
+  eventType   String   // "cart_abandoned", "checkout_started", etc.
+  customerId  String?  // Shopify customer ID (if available)
+  orderId     String?  // Shopify order ID (if available)
+  metadata    Json?    // Additional event data
+  createdAt   DateTime @default(now())
+  syncedAt    DateTime @default(now())
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
