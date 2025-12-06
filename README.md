@@ -4,24 +4,100 @@ A comprehensive multi-tenant service that simulates how Xeno helps enterprise re
 
 ## 🏗️ Architecture
 
+### High-Level Architecture Diagram
+
 ```
-┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-│   Shopify       │────────▶│   Backend API   │────────▶│   PostgreSQL    │
-│   Stores        │ Webhooks│   (Express.js)  │         │   (Supabase)    │
-└─────────────────┘         └─────────────────┘         └─────────────────┘
-                                      │
-                                      │ REST API
-                                      ▼
-                            ┌─────────────────┐
-                            │  Frontend       │
-                            │  (Next.js)      │
-                            └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         Shopify Stores                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │  Store A     │  │  Store B     │  │  Store C     │          │
+│  │ (Tenant 1)   │  │ (Tenant 2)   │  │ (Tenant 3)   │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                 │                 │                  │
+│         └─────────────────┼─────────────────┘                  │
+│                           │                                     │
+│                    REST API / Webhooks                          │
+└───────────────────────────┼─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Backend API (Express.js)                      │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Authentication Middleware (JWT)                         │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Tenant Isolation Middleware                               │  │
+│  │  - Extracts tenantId from request                          │  │
+│  │  - Injects into all queries                               │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Services Layer                                          │  │
+│  │  - ShopifyService (API calls)                            │  │
+│  │  - SyncService (Data ingestion)                          │  │
+│  │  - SchedulerService (Cron jobs)                           │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Controllers                                             │  │
+│  │  - TenantController                                      │  │
+│  │  - InsightsController                                    │  │
+│  │  - AuthController                                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            │ Prisma ORM
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              PostgreSQL Database (Supabase)                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
+│  │   Tenant    │  │  Customer    │  │    Order     │         │
+│  │  (Isolated) │  │  (tenantId)  │  │  (tenantId)  │         │
+│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│  ┌──────────────┐  ┌──────────────┐                           │
+│  │   Product    │  │ CustomEvent  │                           │
+│  │  (tenantId)  │  │  (tenantId)  │                           │
+│  └──────────────┘  └──────────────┘                           │
+│                                                                 │
+│  All tables have tenantId for multi-tenant isolation           │
+└─────────────────────────────────────────────────────────────────┘
+                            ▲
+                            │ REST API
+                            │
+┌───────────────────────────┴─────────────────────────────────────┐
+│                    Frontend (Next.js)                            │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Pages                                                    │  │
+│  │  - Login Page                                             │  │
+│  │  - Dashboard Page                                         │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Components                                              │  │
+│  │  - TenantSelector                                        │  │
+│  │  - DashboardStats                                        │  │
+│  │  - OrdersChart                                           │  │
+│  │  - TopCustomers                                          │  │
+│  │  - MonthlyRevenueChart                                   │  │
+│  │  - OrderStatusChart                                      │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  API Client (Axios)                                       │  │
+│  │  - JWT token management                                   │  │
+│  │  - Tenant context                                        │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Architecture Components
+
+1. **Shopify Stores**: Multiple tenant stores, each with their own domain and access token
+2. **Backend API**: Express.js server with middleware for auth and tenant isolation
+3. **Database**: PostgreSQL with Prisma ORM, all tables include `tenantId` for isolation
+4. **Frontend**: Next.js React app with dashboard and visualization components
+5. **Scheduler**: Node-cron for automatic hourly data sync
 
 ### Key Features
 
 - **Multi-tenant Architecture** - Isolated data per Shopify store using tenant identifiers
-- **Data Ingestion** - Syncs customers, orders, products, and custom events from Shopify
+- **Data Ingestion** - Syncs customers, orders, products from Shopify APIs, and custom events via webhooks
 - **Insights Dashboard** - Visualize business metrics with charts and analytics
 - **Date Range Filtering** - Filter orders and metrics by custom date ranges
 - **Real-time Sync** - Manual sync trigger or scheduled sync (via cron)
@@ -148,32 +224,304 @@ All models include `tenantId` for multi-tenant data isolation.
 
 ## 🔌 API Endpoints
 
-### Authentication
-- `POST /api/auth/login` - Login with email/password
-- `POST /api/auth/register` - Register new user
+### Base URL
+- **Local**: `http://localhost:3000`
+- **Production**: `https://shopify-insights-backend.onrender.com`
 
-### Tenants
-- `GET /api/tenants` - Get all tenants (requires auth)
-- `GET /api/tenants/:id` - Get tenant by ID
-- `POST /api/tenants` - Create new tenant
-  ```json
+### Authentication Endpoints
+
+#### `POST /api/auth/login`
+Login with email/password (demo mode - accepts any credentials).
+
+**Request:**
+```json
+{
+  "email": "admin@example.com",
+  "password": "password"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### `POST /api/auth/register`
+Register new user (demo mode).
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password"
+}
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### Tenant Management Endpoints
+
+All tenant endpoints require `Authorization: Bearer <token>` header.
+
+#### `GET /api/tenants`
+Get all tenants for the authenticated user.
+
+**Response:**
+```json
+[
   {
+    "id": "uuid",
     "name": "My Store",
     "shopifyDomain": "mystore.myshopify.com",
-    "shopifyAccessToken": "shpat_xxx",
-    "shopifyApiKey": "xxx",
-    "shopifyApiSecret": "xxx"
+    "isActive": true,
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
-  ```
-- `POST /api/tenants/:id/sync` - Trigger manual data sync
+]
+```
 
-### Insights
-- `GET /api/insights/dashboard?tenantId=xxx&startDate=2024-01-01&endDate=2024-12-31`
-  - Returns: totals (customers, orders, products, revenue), ordersByDate, topCustomers
-- `GET /api/insights/orders?tenantId=xxx&startDate=...&endDate=...&page=1&limit=50`
-  - Returns: paginated orders with customer info
+#### `GET /api/tenants/:id`
+Get tenant by ID.
 
-**Note:** All insights endpoints require `x-tenant-id` header or `tenantId` query parameter.
+**Response:**
+```json
+{
+  "id": "uuid",
+  "name": "My Store",
+  "shopifyDomain": "mystore.myshopify.com",
+  "shopifyAccessToken": "shpat_xxx",
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z",
+  "updatedAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### `POST /api/tenants`
+Create new tenant.
+
+**Request:**
+```json
+{
+  "name": "My Store",
+  "shopifyDomain": "mystore.myshopify.com",
+  "shopifyAccessToken": "shpat_xxx",
+  "shopifyApiKey": "xxx",
+  "shopifyApiSecret": "xxx"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "name": "My Store",
+  "shopifyDomain": "mystore.myshopify.com",
+  "isActive": true,
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### `POST /api/tenants/:id/sync`
+Trigger manual data sync for a tenant.
+
+**Response:**
+```json
+{
+  "message": "Sync completed",
+  "results": {
+    "customers": { "created": 10, "updated": 5 },
+    "orders": { "created": 20, "updated": 3 },
+    "products": { "created": 15, "updated": 2 }
+  }
+}
+```
+
+### Insights Endpoints
+
+All insights endpoints require:
+- `Authorization: Bearer <token>` header
+- `tenantId` query parameter OR `x-tenant-id` header
+
+#### `GET /api/insights/dashboard`
+Get comprehensive dashboard insights.
+
+**Query Parameters:**
+- `tenantId` (required) - Tenant ID
+- `startDate` (optional) - Filter start date (YYYY-MM-DD)
+- `endDate` (optional) - Filter end date (YYYY-MM-DD)
+
+**Response:**
+```json
+{
+  "totals": {
+    "customers": 100,
+    "orders": 50,
+    "products": 25,
+    "revenue": 5000.00
+  },
+  "ordersByDate": [
+    {
+      "orderDate": "2024-01-01",
+      "count": 5,
+      "revenue": 500.00
+    }
+  ],
+  "topCustomers": [
+    {
+      "id": "uuid",
+      "email": "customer@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "totalSpent": 1000.00,
+      "ordersCount": 10
+    }
+  ],
+  "averageOrderValue": 100.00,
+  "revenueGrowth": 15.5,
+  "orderStatusBreakdown": [
+    { "financialStatus": "paid", "count": 40 },
+    { "financialStatus": "pending", "count": 10 }
+  ],
+  "fulfillmentStatusBreakdown": [
+    { "fulfillmentStatus": "fulfilled", "count": 35 },
+    { "fulfillmentStatus": "unfulfilled", "count": 15 }
+  ],
+  "monthlyRevenue": [
+    {
+      "month": "2024-01-01",
+      "orderCount": 50,
+      "revenue": 5000.00
+    }
+  ]
+}
+```
+
+#### `GET /api/insights/orders`
+Get paginated orders with filtering.
+
+**Query Parameters:**
+- `tenantId` (required) - Tenant ID
+- `startDate` (optional) - Filter start date
+- `endDate` (optional) - Filter end date
+- `page` (optional) - Page number (default: 1)
+- `limit` (optional) - Items per page (default: 50)
+
+**Response:**
+```json
+{
+  "orders": [
+    {
+      "id": "uuid",
+      "shopifyId": "123",
+      "orderNumber": "1001",
+      "totalPrice": 100.00,
+      "currency": "USD",
+      "financialStatus": "paid",
+      "fulfillmentStatus": "fulfilled",
+      "orderDate": "2024-01-01T00:00:00Z",
+      "customer": {
+        "email": "customer@example.com",
+        "firstName": "John",
+        "lastName": "Doe"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 50,
+    "total": 100,
+    "totalPages": 2
+  }
+}
+```
+
+### Custom Events Endpoints
+
+All event endpoints require:
+- `Authorization: Bearer <token>` header
+- `tenantId` query parameter OR `x-tenant-id` header
+
+#### `POST /api/events`
+Create a custom event (cart abandoned, checkout started, etc.).
+
+**Request:**
+```json
+{
+  "eventType": "cart_abandoned",
+  "customerId": "shopify_customer_id",
+  "orderId": "shopify_order_id",
+  "metadata": {
+    "cartValue": 100.00,
+    "items": 3
+  }
+}
+```
+
+**Valid eventTypes:**
+- `cart_abandoned`
+- `checkout_started`
+- `checkout_completed`
+- `product_viewed`
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "tenantId": "uuid",
+  "eventType": "cart_abandoned",
+  "customerId": "shopify_customer_id",
+  "orderId": null,
+  "metadata": {
+    "cartValue": 100.00,
+    "items": 3
+  },
+  "createdAt": "2024-01-01T00:00:00Z"
+}
+```
+
+#### `GET /api/events`
+Get custom events for a tenant.
+
+**Query Parameters:**
+- `tenantId` (required) - Tenant ID
+- `eventType` (optional) - Filter by event type
+- `startDate` (optional) - Filter start date
+- `endDate` (optional) - Filter end date
+
+**Response:**
+```json
+[
+  {
+    "id": "uuid",
+    "tenantId": "uuid",
+    "eventType": "cart_abandoned",
+    "customerId": "shopify_customer_id",
+    "orderId": null,
+    "metadata": {},
+    "createdAt": "2024-01-01T00:00:00Z"
+  }
+]
+```
+
+### Health Check
+
+#### `GET /health`
+Health check endpoint (no authentication required).
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
 
 ## 🎨 Frontend Features
 
@@ -241,20 +589,132 @@ curl http://localhost:3000/api/insights/dashboard?tenantId=TENANT_ID \
 - Environment variables for sensitive data
 - CORS configured for frontend
 
-## 📋 Known Limitations & Assumptions
+## 📋 Assumptions & Known Limitations
 
-1. **Authentication**: Currently uses simple demo authentication. In production, implement proper user management with database.
-2. **Shopify OAuth**: Manual token entry for now. Full OAuth flow can be added.
+### Assumptions Made
+
+1. **Authentication**: 
+   - Assumed demo authentication is sufficient for MVP
+   - Any email/password combination works for testing
+   - Production would require proper user management with database storage
+
+2. **Shopify Integration**:
+   - Manual access token entry is acceptable for initial setup
+   - Full OAuth flow can be implemented later for better UX
+   - Shopify API version 2024-10 is used (can be updated)
+
+3. **Data Sync**:
+   - Polling-based sync (scheduled hourly) is acceptable
+   - Webhooks would provide real-time updates but require additional infrastructure
+   - Incremental sync is handled via upsert logic (idempotent operations)
+
+4. **Multi-Tenancy**:
+   - Single database with tenant isolation is sufficient
+   - Separate databases per tenant would be more secure but less cost-effective
+   - Tenant ID is always provided in requests (no tenant auto-detection)
+
+5. **Database**:
+   - PostgreSQL (Supabase) is used for all tenants
+   - Database connection pooling is handled by Supabase
+   - No sharding required for initial scale
+
+6. **Custom Events**:
+   - Custom events (cart abandoned, checkout started) require webhook implementation
+   - Schema is ready, webhook endpoints can be added
+   - For demo, events can be manually created via API
+
+7. **Performance**:
+   - Indexes on `tenantId` are sufficient for query performance
+   - Pagination is implemented for large datasets
+   - No caching layer assumed (Redis can be added)
+
+### Known Limitations
+
+1. **Authentication**: Simple demo authentication. Production needs proper user management.
+2. **Shopify OAuth**: Manual token entry. Full OAuth flow can be added.
 3. **Webhooks**: Webhook endpoints not yet implemented. Can be added for real-time updates.
-4. **Scheduler**: Cron job for automatic sync not included. Can use `node-cron` package.
-5. **Error Handling**: Basic error handling. Production should have comprehensive error handling and logging.
-6. **Pagination**: Orders endpoint has pagination, but other endpoints may need it for large datasets.
+4. **Error Handling**: Basic error handling. Production should have comprehensive error handling and logging.
+5. **Pagination**: Orders endpoint has pagination, but other endpoints may need it for large datasets.
+6. **Rate Limiting**: No rate limiting implemented. Shopify API has rate limits that should be respected.
+7. **Data Validation**: Basic validation. Production should have comprehensive input validation.
+8. **Monitoring**: No monitoring/alerting. Production should have logging, metrics, and alerts.
+
+## 🚀 Next Steps to Productionize
+
+### 1. Authentication & Authorization
+- [ ] Implement proper user management with database
+- [ ] Add role-based access control (RBAC)
+- [ ] Implement password reset functionality
+- [ ] Add email verification
+- [ ] Implement session management
+
+### 2. Shopify Integration
+- [ ] Implement full OAuth flow for Shopify
+- [ ] Add webhook endpoints for real-time updates:
+  - `orders/create` - New order notifications
+  - `orders/updated` - Order status changes
+  - `customers/create` - New customer signups
+  - `checkouts/create` - Checkout started events
+  - `carts/create` - Cart abandoned events
+- [ ] Add webhook signature verification
+- [ ] Implement retry logic for failed webhooks
+
+### 3. Data Sync & Performance
+- [ ] Add Redis caching layer for frequently accessed data
+- [ ] Implement incremental sync (only fetch changed data)
+- [ ] Add rate limiting to respect Shopify API limits
+- [ ] Implement queue system (RabbitMQ/Redis) for async processing
+- [ ] Add data validation and sanitization
+
+### 4. Monitoring & Observability
+- [ ] Add comprehensive logging (Winston/Pino)
+- [ ] Implement error tracking (Sentry)
+- [ ] Add application metrics (Prometheus)
+- [ ] Set up health checks and alerts
+- [ ] Add performance monitoring (APM)
+
+### 5. Security
+- [ ] Implement rate limiting on API endpoints
+- [ ] Add input validation and sanitization
+- [ ] Implement CORS properly for production
+- [ ] Add API key management
+- [ ] Implement audit logging
+- [ ] Add data encryption at rest
+
+### 6. Scalability
+- [ ] Implement database connection pooling
+- [ ] Add read replicas for database
+- [ ] Implement horizontal scaling for API
+- [ ] Add CDN for frontend assets
+- [ ] Implement database sharding if needed
+
+### 7. Testing
+- [ ] Add unit tests (Jest)
+- [ ] Add integration tests
+- [ ] Add E2E tests (Playwright/Cypress)
+- [ ] Add load testing
+- [ ] Implement CI/CD pipeline
+
+### 8. Documentation
+- [ ] Add API documentation (Swagger/OpenAPI)
+- [ ] Add developer guide
+- [ ] Add deployment runbooks
+- [ ] Add troubleshooting guide
+
+### 9. Features
+- [ ] Export functionality (CSV, PDF, Excel)
+- [ ] Advanced filtering and search
+- [ ] Real-time notifications
+- [ ] Custom report builder
+- [ ] Data visualization enhancements
+- [ ] Multi-currency support
+- [ ] Timezone handling
 
 ## 🚧 Future Enhancements
 
+- [x] Scheduled sync with cron jobs ✅
 - [ ] Full Shopify OAuth flow
 - [ ] Webhook endpoints for real-time updates
-- [ ] Scheduled sync with cron jobs
 - [ ] User management system
 - [ ] More advanced analytics and metrics
 - [ ] Export functionality (CSV, PDF)

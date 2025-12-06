@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import tenantRoutes from './src/routes/tenantRoutes.js';
 import insightsRoutes from './src/routes/insightsRoutes.js';
 import authRoutes from './src/routes/authRoutes.js';
+import eventRoutes from './src/routes/eventRoutes.js';
 import { startScheduler } from './src/services/schedulerService.js';
 
 // Load environment variables
@@ -68,6 +69,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/insights', insightsRoutes);
+app.use('/api/events', eventRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

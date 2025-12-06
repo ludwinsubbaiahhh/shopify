@@ -94,7 +94,7 @@ This guide will help you deploy the Shopify Data Ingestion & Insights Service to
 
 6. **Get Your Backend URL**:
    - Render provides a default URL like: `your-app.onrender.com`
-   - Copy this URL
+   - Copy this URL https://shopify-insights-backend.onrender.com
 
 ---
 
@@ -125,7 +125,7 @@ This guide will help you deploy the Shopify Data Ingestion & Insights Service to
    - Click "Deploy"
    - Wait for build to complete
    - Vercel will provide a URL like: `your-app.vercel.app`
-
+    
 ---
 
 ## Step 3: Update CORS and Environment Variables

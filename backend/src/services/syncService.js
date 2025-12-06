@@ -231,3 +231,56 @@ export async function syncTenantData(tenantId) {
   }
 }
 
+/**
+ * Create custom event (cart abandoned, checkout started, etc.)
+ * This is typically called via webhooks from Shopify
+ */
+export async function createCustomEvent(tenantId, eventType, customerId = null, orderId = null, metadata = null) {
+  try {
+    const event = await prisma.customEvent.create({
+      data: {
+        tenantId,
+        eventType,
+        customerId,
+        orderId,
+        metadata: metadata || {},
+        syncedAt: new Date(),
+      },
+    });
+
+    return event;
+  } catch (error) {
+    console.error('Error creating custom event:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get custom events for a tenant
+ */
+export async function getCustomEvents(tenantId, eventType = null, startDate = null, endDate = null) {
+  try {
+    const where = { tenantId };
+    
+    if (eventType) {
+      where.eventType = eventType;
+    }
+    
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
+
+    const events = await prisma.customEvent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return events;
+  } catch (error) {
+    console.error('Error fetching custom events:', error);
+    throw error;
+  }
+}
+
