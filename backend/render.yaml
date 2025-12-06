@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: shopify-insights-backend
+    env: node
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SHOPIFY_API_VERSION
+        value: 2024-10
+      - key: ENABLE_SCHEDULER
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+

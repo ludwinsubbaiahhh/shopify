@@ -102,6 +102,29 @@ npm run dev
 
 Frontend will run on `http://localhost:3001`
 
+## 🚀 Deployment
+
+For detailed deployment instructions, see [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+### Quick Deploy Summary
+
+- **Frontend**: Deploy to [Vercel](https://vercel.com) (automatic Next.js detection)
+- **Backend**: Deploy to [Railway](https://railway.app) or [Render](https://render.com)
+- **Database**: Already using Supabase PostgreSQL
+
+### Required Environment Variables
+
+**Backend:**
+- `DATABASE_URL` - Supabase PostgreSQL connection string
+- `JWT_SECRET` - Random secret string (32+ chars)
+- `SHOPIFY_API_VERSION` - Shopify API version (e.g., `2024-10`)
+- `FRONTEND_URL` - Your Vercel frontend URL (for CORS)
+
+**Frontend:**
+- `NEXT_PUBLIC_API_URL` - Your backend API URL
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for step-by-step instructions.
+
 ## 📊 Database Schema
 
 ### Core Models
