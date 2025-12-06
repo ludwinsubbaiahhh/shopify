@@ -23,14 +23,11 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Simple demo authentication (replace with database lookup)
-    const user = DEMO_USERS.find(u => u.email === email);
+    // Simple demo authentication - accept any email/password for demo
+    // In production, use proper user management with database
+    const user = DEMO_USERS.find(u => u.email === email) || { email };
     
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    // For demo, accept any password (in production, use bcrypt.compare)
+    // For demo, accept any email/password (in production, use bcrypt.compare)
     const token = jwt.sign(
       { email: user.email },
       process.env.JWT_SECRET,

@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -12,30 +12,30 @@ import {
 } from 'recharts';
 import { format, parseISO } from 'date-fns';
 
-export default function OrdersChart({ data }) {
+export default function MonthlyRevenueChart({ data }) {
   const chartData = data.map((item) => ({
-    date: format(parseISO(item.date), 'MMM dd'),
-    orders: item.count,
+    month: format(parseISO(item.month), 'MMM yyyy'),
     revenue: parseFloat(item.revenue || 0),
+    orders: item.orderCount || 0,
   }));
 
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg p-5 sm:p-6 border border-gray-100/50 animate-fade-in">
       <div className="flex items-center gap-2 mb-4">
-        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+        <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
           <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
         </div>
-        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Orders by Date</h2>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Monthly Revenue Trend</h2>
       </div>
       {chartData.length > 0 ? (
         <div className="w-full overflow-x-auto">
           <ResponsiveContainer width="100%" height={280} minHeight={250}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis 
-                dataKey="date" 
+                dataKey="month" 
                 stroke="#6b7280"
                 style={{ fontSize: '12px' }}
               />
@@ -59,35 +59,29 @@ export default function OrdersChart({ data }) {
                 }}
               />
               <Legend />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="orders"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6', r: 4 }}
-                activeDot={{ r: 6 }}
-                name="Orders"
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="revenue"
-                stroke="#10b981"
-                strokeWidth={2}
-                dot={{ fill: '#10b981', r: 4 }}
-                activeDot={{ r: 6 }}
+              <Bar 
+                yAxisId="left" 
+                dataKey="revenue" 
+                fill="#3b82f6" 
                 name="Revenue ($)"
+                radius={[8, 8, 0, 0]}
               />
-            </LineChart>
+              <Bar 
+                yAxisId="right" 
+                dataKey="orders" 
+                fill="#10b981" 
+                name="Orders"
+                radius={[8, 8, 0, 0]}
+              />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       ) : (
         <div className="text-center py-12 text-gray-500">
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
-          <p>No order data available for the selected date range</p>
+          <p>No monthly revenue data available</p>
         </div>
       )}
     </div>

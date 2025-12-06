@@ -46,6 +46,7 @@ export async function getDashboardInsights(req, res) {
       take: 5,
       select: {
         id: true,
+        shopifyId: true,
         email: true,
         firstName: true,
         lastName: true,
@@ -54,12 +55,95 @@ export async function getDashboardInsights(req, res) {
       },
     });
 
+    // Additional metrics
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    
+    // Revenue trends (last 30 days vs previous 30 days)
+    const now = new Date();
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const previous30Days = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    
+    const [recentRevenue, previousRevenue] = await Promise.all([
+      prisma.order.aggregate({
+        where: {
+          tenantId,
+          orderDate: { gte: last30Days },
+        },
+        _sum: { totalPrice: true },
+      }),
+      prisma.order.aggregate({
+        where: {
+          tenantId,
+          orderDate: { gte: previous30Days, lt: last30Days },
+        },
+        _sum: { totalPrice: true },
+      }),
+    ]);
+
+    const revenueGrowth = previousRevenue._sum.totalPrice > 0
+      ? ((recentRevenue._sum.totalPrice - previousRevenue._sum.totalPrice) / previousRevenue._sum.totalPrice) * 100
+      : 0;
+
+    // Order status breakdown
+    const orderStatusBreakdown = await prisma.order.groupBy({
+      by: ['financialStatus'],
+      where: { tenantId, ...dateFilter },
+      _count: { id: true },
+    });
+
+    // Fulfillment status breakdown
+    const fulfillmentStatusBreakdown = await prisma.order.groupBy({
+      by: ['fulfillmentStatus'],
+      where: { tenantId, ...dateFilter },
+      _count: { id: true },
+    });
+
+    // Monthly revenue trend - simplified approach using order grouping
+    // Group orders by month manually since Prisma doesn't support DATE_TRUNC easily
+    const allOrders = await prisma.order.findMany({
+      where: { tenantId, ...dateFilter },
+      select: {
+        orderDate: true,
+        totalPrice: true,
+      },
+    });
+
+    // Group by month
+    const monthlyRevenueMap = new Map();
+    allOrders.forEach(order => {
+      const monthKey = `${order.orderDate.getFullYear()}-${String(order.orderDate.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthlyRevenueMap.has(monthKey)) {
+        monthlyRevenueMap.set(monthKey, { month: `${monthKey}-01`, orderCount: 0, revenue: 0 });
+      }
+      const monthData = monthlyRevenueMap.get(monthKey);
+      monthData.orderCount++;
+      monthData.revenue += parseFloat(order.totalPrice);
+    });
+
+    const monthlyRevenue = Array.from(monthlyRevenueMap.values())
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .map(item => ({
+        month: item.month,
+        order_count: item.orderCount,
+        revenue: item.revenue,
+      }));
+
+    // Customer lifetime value stats
+    const customerStats = await prisma.customer.aggregate({
+      where: { tenantId },
+      _avg: { totalSpent: true },
+      _max: { totalSpent: true },
+      _min: { totalSpent: true },
+    });
+
     res.json({
       totals: {
         customers: totalCustomers,
         orders: totalOrders,
         products: totalProducts,
         revenue: totalRevenue,
+        averageOrderValue,
+        revenueGrowth,
       },
       ordersByDate: ordersByDate.map(item => ({
         date: item.orderDate,
@@ -67,6 +151,24 @@ export async function getDashboardInsights(req, res) {
         revenue: item._sum.totalPrice,
       })),
       topCustomers,
+      orderStatusBreakdown: orderStatusBreakdown.map(item => ({
+        status: item.financialStatus || 'unknown',
+        count: item._count.id,
+      })),
+      fulfillmentStatusBreakdown: fulfillmentStatusBreakdown.map(item => ({
+        status: item.fulfillmentStatus || 'unknown',
+        count: item._count.id,
+      })),
+      monthlyRevenue: Array.isArray(monthlyRevenue) ? monthlyRevenue.map(item => ({
+        month: item.month,
+        orderCount: Number(item.order_count || 0),
+        revenue: Number(item.revenue || 0),
+      })) : [],
+      customerStats: {
+        averageLifetimeValue: customerStats._avg.totalSpent || 0,
+        maxLifetimeValue: customerStats._max.totalSpent || 0,
+        minLifetimeValue: customerStats._min.totalSpent || 0,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

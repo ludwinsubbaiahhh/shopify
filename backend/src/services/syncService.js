@@ -13,13 +13,33 @@ export async function syncCustomers(tenantId, shopifyDomain, accessToken) {
     const shopifyCustomers = await fetchAllCustomers(shopifyDomain, accessToken);
     const syncedCount = { created: 0, updated: 0 };
 
+    // Get all orders to extract customer names from billing addresses
+    const shopifyOrders = await fetchAllOrders(shopifyDomain, accessToken);
+    const customerNamesFromOrders = new Map();
+    
+    // Extract names from order billing addresses
+    shopifyOrders.forEach(order => {
+      if (order.customer && order.billing_address) {
+        const customerId = order.customer.id.toString();
+        if (!customerNamesFromOrders.has(customerId)) {
+          customerNamesFromOrders.set(customerId, {
+            firstName: order.billing_address.first_name || order.customer.first_name || null,
+            lastName: order.billing_address.last_name || order.customer.last_name || null,
+          });
+        }
+      }
+    });
+
     for (const shopifyCustomer of shopifyCustomers) {
+      // Try to get name from customer, then from orders
+      const orderNameData = customerNamesFromOrders.get(shopifyCustomer.id.toString());
+      
       const customerData = {
         tenantId,
         shopifyId: shopifyCustomer.id.toString(),
         email: shopifyCustomer.email || null,
-        firstName: shopifyCustomer.first_name || null,
-        lastName: shopifyCustomer.last_name || null,
+        firstName: shopifyCustomer.first_name || orderNameData?.firstName || null,
+        lastName: shopifyCustomer.last_name || orderNameData?.lastName || null,
         phone: shopifyCustomer.phone || null,
         totalSpent: parseFloat(shopifyCustomer.total_spent || 0),
         ordersCount: shopifyCustomer.orders_count || 0,
