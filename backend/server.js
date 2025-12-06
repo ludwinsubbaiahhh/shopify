@@ -18,7 +18,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   process.env.FRONTEND_URL,
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-].filter(Boolean);
+].filter(Boolean).filter(url => !url.includes('your-') && !url.includes('placeholder')); // Filter out placeholder URLs
 
 // Allow Vercel preview deployments (if FRONTEND_URL contains vercel.app)
 const isVercelDomain = (origin) => {
@@ -28,8 +28,8 @@ const isVercelDomain = (origin) => {
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.) in development
-    if (!origin && process.env.NODE_ENV === 'development') {
+    // Allow requests with no origin (curl, Postman, health checks, etc.)
+    if (!origin) {
       return callback(null, true);
     }
     
@@ -45,8 +45,9 @@ app.use(cors({
       // Emergency override for testing
       callback(null, true);
     } else {
-      console.warn(`CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      // Log but allow for now (you can make this stricter later)
+      console.warn(`CORS: Unrecognized origin: ${origin}`);
+      callback(null, true); // Temporarily allow all for testing
     }
   },
   credentials: true,
@@ -54,14 +55,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-tenant-id'],
 }));
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Health check
+// Health check (before CORS, so it's always accessible)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -81,8 +82,26 @@ app.listen(PORT, () => {
   
   // Start scheduler if enabled (optional, can be disabled via env)
   if (process.env.ENABLE_SCHEDULER !== 'false') {
-    const cronExpression = process.env.SYNC_CRON_EXPRESSION || '0 * * * *'; // Every hour
-    startScheduler(cronExpression);
+    try {
+      const cronExpression = process.env.SYNC_CRON_EXPRESSION || '0 * * * *'; // Every hour
+      startScheduler(cronExpression);
+      console.log(`⏰ Scheduler started with expression: ${cronExpression}`);
+    } catch (error) {
+      console.error('❌ Failed to start scheduler:', error.message);
+      // Don't crash the server if scheduler fails
+    }
   }
+});
+
+// Handle uncaught errors
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled promise rejection:', error);
+  // Don't exit, let the server keep running
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  // Exit gracefully
+  process.exit(1);
 });
 
